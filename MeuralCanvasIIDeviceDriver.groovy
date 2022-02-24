@@ -1,5 +1,5 @@
 /**
- *  Meural Canvas II v0.00 Beta
+ *  Meural Canvas II v0.01 Beta
  *
  *  Copyright 2022 Norbert Brinkley
  *
@@ -16,6 +16,7 @@
  *
  *  Release Notes:
  *  v0.00 Beta
+ *  v0.01 Added IlluminanceMeasurement capability and cleaned up attributes to align correctly with capabilities.  This improved Alexa Power Level.
  *
  *  Future additions:
  *  /remote/get_galleries_json
@@ -33,20 +34,17 @@ metadata {
         capability "Switch"
         capability "SwitchLevel"
         capability "Actuator"
+        capability "IlluminanceMeasurement" //20220203 -added to utilize the "lux" attribute that Meural provides via its sensor
         
         //{"status":"pass","response":{"product":"69L31175A0141","version":"2.2.10_2.0.13","als":true,"backlight":"69","lux":"50","gsensor":"landscape","server":{"state":"online","sync":"2022-01-12 07:12:36","error":""},"date":{"day":"Tuesday","month":"February","day_month":"22","time":"08:59","tz":"EST","epoch":"1645538373"},"orientation":"landscape","alias":"klimt-785","name":"Living Room Left","wifi_status":{"state":"wifi","name":"Brinkley","ip":"192.168.68.63","signal":"-39","freq":"5240","bit":"433.3","remote":false,"bands":"2","softap":{"name":"meural-klimt-785","password":"f434d47e","ip":"NA","state":"offline"}},"bt_status":{"state":"offline","ip":"","key":"535215"},"lan_status":{"state":"offline","ip":""},"free_space":3979,"boot_status":"image","sdcard":true,"language":"en","country":"US"}}
     
         attribute "product", "string"
         attribute "version", "string"
-        //attribute "als", "boolean"  //misleading as it does not change with a manual override
-        attribute "backlight", "number"
-        attribute "lux", "number"
         attribute "asofdatetime", "string"
         attribute "name", "string"
         attribute "current_gallery_name", "string"
         
-        attribute "level", "number"
-        attribute "switch", "string"
+        //add descriptive information
         command "setLevel", [[name: "Set Brightness", type: "NUMBER", description: "Manually set brightness level as a percent. Meural restricts the range to 9 through 94.  Use 0 or 100 to restore automatic level setting"]]
         
         //Example command "testEnum", [[name:"Testing Enum", type: "ENUM", description: "Pick an option", constraints: ["one","two","three"] ] ]
@@ -96,9 +94,6 @@ def initialize() {
 def updated() {
     log.info "${device.displayName}.updated()"
     
-    /*if (level != null) {
-        setBrightness(level)
-    }*/
     refresh()
 }
 
@@ -149,13 +144,14 @@ def httpGetSystemInfo(response, data) {
     try {
         sendEvent(name: "product", value: meuralResponse.response.product)
         sendEvent(name: "version", value: meuralResponse.response.version)
-        sendEvent(name: "backlight", value: meuralResponse.response.backlight)
-        sendEvent(name: "lux", value: meuralResponse.response.lux)
+        sendEvent(name: "level", value: meuralResponse.response.backlight)
+        sendEvent(name: 'illuminance', value: meuralResponse.response.lux)
         sendEvent(name: "name", value: meuralResponse.response.name)
         
         Date dateObj =  new Date(1000L * (meuralResponse.response.date.epoch as int))
         def cleanDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(dateObj)
         sendEvent(name: "asofdatetime", value: cleanDate)
+        
     }
     catch (e)
     {
@@ -190,7 +186,6 @@ def on() {
         timeout: 10
 	]);
 
-    state.switch = "on"
     sendEvent(name: "switch", value: "on")
 }
 
@@ -207,7 +202,6 @@ def off(){
         timeout: 10
 	]);
     
-    state.switch = "off"
     sendEvent(name: "switch", value: "off")
 }
 
@@ -222,8 +216,7 @@ def setLevel(level, duration) {
 		return
 	}
     
-    state.level = level
-    sendEvent(name: "backlight", value: level)
+    sendEvent(name: "level", value: level)
 	
     if (level == 0 || level == 100) {
         
